@@ -4,6 +4,8 @@ import re
 import urllib
 import errno
 
+import progressbar
+
 from bs4 import BeautifulSoup
 
 SCORE_RE = re.compile(r'score(\d\d)')
@@ -95,10 +97,21 @@ def scrape(user_id, outfile=sys.stdout):
         if OSError.errno == errno.EEXIST:
             pass
 
+
     html = get_rottentomatoes_html(user_id, 1)
     n_pages = parse_first_page(html, outfile)
 
+    widgets = ['RT: ', progressbar.Percentage(), ' ',
+            progressbar.Bar(marker='|',left='[',right=']'),
+            ' ', progressbar.ETA(), ' '] #see docs for other
+
+    pbar = progressbar.ProgressBar(widgets=widgets, maxval=n_pages)
+    pbar.start()
+
     for page_num in range(2, n_pages+1):
+        pbar.update(page_num)
         html = get_rottentomatoes_html(user_id, page_num)
         parse_page(html, outfile)
+
+    pbar.finish()
 

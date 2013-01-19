@@ -2,7 +2,7 @@
 import sys
 import argparse
 
-# import progressbar
+import progressbar
 
 from rt_scraper import config, rt_scraper
 
