@@ -13,10 +13,14 @@ YEAR_RE = re.compile(r'\((\d+)\)')
 USER_ID = 783076641
 
 def get_url_filename(i):
+    """Returns the cache file name
+    """
     return "cache/rt_url%d.html" % i
 
 
 def get_rottentomatoes_html(user_id, page_num):
+    """Gets the html from cache or from the http url
+    """
     url = "https://www.rottentomatoes.com/user/id/%s/" \
             "ratings?profileUserId=%s&sortby=" \
             "ratingDate&pageNum=%s" % (user_id, user_id, page_num)
@@ -45,6 +49,9 @@ def clean_title(title):
 
 
 def parse_page(soup):
+    """Parses a page for the title, year and rating.
+    Prints the tuple to stdout
+    """
     if not isinstance(soup, BeautifulSoup):
         soup = BeautifulSoup(soup)
 
@@ -77,6 +84,10 @@ def parse_page(soup):
 
 
 def parse_first_page(soup):
+    """Preforms a parse on the first page.
+    Returns the total number of pages
+    """
+
     if not isinstance(soup, BeautifulSoup):
         soup = BeautifulSoup(soup)
 
@@ -88,6 +99,9 @@ def parse_first_page(soup):
 
 
 def main():
+    """Runs the parser on Rotten Tomatoes
+    """
+
     # Create cache dir if it doesn't exist
     try:
         os.mkdir('cache')
