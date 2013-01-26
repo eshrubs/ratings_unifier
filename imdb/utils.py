@@ -36,7 +36,7 @@ def login(login, password):
 
 def search(query):
     encoded_query = urllib.urlencode({
-        'query': query.encode('utf-8'),
+        'q': query.encode('utf-8'),
         's': 'all',
         })
     url = 'http://www.imdb.com/find?{0}'.format(encoded_query)
@@ -52,16 +52,18 @@ def try_get_search_page(movie, year=None):
     html = search("%s %s" % (movie, year))
     soup = BeautifulSoup(html)
 
-    find_list = soup.find('table', attrs={'class', 'find_list'})
-    top = find_list.tbody.tr.find('td', attrs={'class', 'result_text'})
+    find_list = soup.find('table', attrs={'class', 'findList'})
+    top = find_list.find('td', attrs={'class', 'result_text'})
 
     top_a = top.find('a')
-    top_title = top_a.string
-    top_year = int(re.match(r'\((\d+)\)', top.string).group(1))
 
-    sys.stderrwrite('%s, %d\n' % (top_title, top_write))
+    td_string = top.get_text().strip()
+    top_title, top_year = re.match(r'(.+) \((\d+)\)', td_string).groups()
+    top_year = int(top_year)
 
-    if not top_title == movie:
+    sys.stderr.write('%s, %d\n' % (top_title, top_year))
+
+    if not top_title.lower() == movie.lower():
         sys.stderr.write('%s does not match %s exactly\n' % (top_title, movie))
     elif year and not year == top_year:
         sys.strerr.write('Years for movie %s does not match (%d, %d)\n' %
