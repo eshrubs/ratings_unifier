@@ -1,10 +1,7 @@
-import sys
 import os
 import re
 import urllib
-import errno
-
-import progressbar
+import logging
 
 from bs4 import BeautifulSoup
 
@@ -15,7 +12,6 @@ def get_url_filename(i):
     """Returns the cache file name
     """
     return "cache/rt_url%d.html" % i
-
 
 def get_rottentomatoes_html(user_id, page_num):
     """Gets the html from cache or from the http url
@@ -28,28 +24,28 @@ def get_rottentomatoes_html(user_id, page_num):
 
     html = None
     if os.path.exists(cache_filename):
+        logging.info('Fetched {0} from cache'.format(url))
         with open(cache_filename, 'r') as f:
             html = f.read()
     else:
+        logging.info('Fetching {0} from RT'.format(url))
         html = urllib.urlopen(url).read()
+        logging.info('Caching {0} from into {1}'.format(url, cache_filename))
         with open(cache_filename, 'w') as f:
             f.write(BeautifulSoup(html).prettify().encode('utf-8'))
 
     return html
-
 
 def clean_title(title):
     """Titles come with escaped quotes. Remove the slash
     """
     return re.sub(r"\\(.)", r"\1", title)
 
-
-def parse_page(soup, outfile=sys.stdout):
+def parse_page(html):
     """Parses a page for the title, year and rating.
     Prints the tuple to stdout
     """
-    if not isinstance(soup, BeautifulSoup):
-        soup = BeautifulSoup(soup)
+    soup = BeautifulSoup(html)
 
     for media_block in soup.find_all('li', attrs={'class', 'media_block'}):
         media_block_image = media_block.find_next('a',
@@ -72,46 +68,18 @@ def parse_page(soup, outfile=sys.stdout):
                 ).group(1)
         score = int(score) / 5
 
-        outfile.write((u"%s,%d,%s\n" % (movie, year, score)).encode('utf-8'))
+        logging.info('Found rating tuple: {0}'.format((movie, year, score)))
 
-def parse_first_page(soup, outfile=sys.stdout):
-    """Preforms a parse on the first page.
-    Returns the total number of pages
-    """
+        yield((movie, year, score))
 
-    if not isinstance(soup, BeautifulSoup):
-        soup = BeautifulSoup(soup)
+def get_n_pages(html):
+    soup = BeautifulSoup(html)
 
     top_ul = soup.body.ul
     pages = int(top_ul['pages'])
-
-    parse_page(soup, outfile=outfile)
     return pages
 
-
-def scrape(user_id, outfile=sys.stdout):
-    # Create cache dir if it doesn't exist
-    try:
-        os.mkdir('cache')
-    except OSError:
-        if OSError.errno == errno.EEXIST:
-            pass
-
-
+def get_total_number_user_rating_pages(user_id):
     html = get_rottentomatoes_html(user_id, 1)
-    n_pages = parse_first_page(html, outfile)
-
-    widgets = ['RT: ', progressbar.Percentage(), ' ',
-            progressbar.Bar(marker='|',left='[',right=']'),
-            ' ', progressbar.ETA(), ' '] #see docs for other
-
-    pbar = progressbar.ProgressBar(widgets=widgets, maxval=n_pages)
-    pbar.start()
-
-    for page_num in range(2, n_pages+1):
-        pbar.update(page_num)
-        html = get_rottentomatoes_html(user_id, page_num)
-        parse_page(html, outfile)
-
-    pbar.finish()
+    return get_n_pages(html)
 

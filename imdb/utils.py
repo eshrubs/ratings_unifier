@@ -5,6 +5,8 @@ import os
 import json
 import re
 import logging
+import time
+from base64 import b64encode
 
 import urllib
 import urllib2
@@ -16,8 +18,26 @@ cookiejar = cookielib.LWPCookieJar()
 url_opener = urllib2.build_opener(
         urllib2.HTTPCookieProcessor(cookiejar))
 url_opener.add_header = [('User-Agent',
-'Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.9.0.1) Gecko/2008071615 Fedora/3.0.1-1.fc9 Firefox/3.0.1')]
+'Mozilla/5.0 (X11; U; Linux i686; en-US; rv:1.9.0.1) Gecko/2008071615 '
+'Fedora/3.0.1-1.fc9 Firefox/3.0.1'),
+('Accept-Language', 'en-US,en;q=0.8,en-CA;q=0.6')]
 
+IMDB_THROTTLE = 2 # second
+last_time_sent = 0
+def open_url(request):
+    global last_time_sent
+    now = time.time()
+    diff = now - last_time_sent
+    if diff < IMDB_THROTTLE:
+        logging.info('Throttling...')
+        time.sleep(IMDB_THROTTLE - diff)
+    last_time_sent = time.time()
+    try:
+        return url_opener.open(request)
+    except Exception as ex:
+        logging.error('Got an error. Retrying in 10 seconds: %s' % ex)
+        time.sleep(10)
+        return open_url(request)
 
 def login(login, password):
     # Use mobile login because it actually works
@@ -31,7 +51,7 @@ def login(login, password):
     try:
         data = urllib.urlencode(values)
         request = urllib2.Request(url, data)
-        response = url_opener.open(request)
+        response = open_url(request)
         return response
     except urllib2.HTTPError, ex:
         logging.error('Request failed: %d, %s', ex.code, response_data)
@@ -47,7 +67,7 @@ def search(query):
 
     request = urllib2.Request(url)
     logging.info('Searching: %s' % url)
-    response = url_opener.open(request)
+    response = open_url(request)
     response_data = response.read()
     return response_data
 
@@ -57,6 +77,12 @@ def try_get_search_page(movie, year=None):
     soup = BeautifulSoup(html)
 
     find_list = soup.find('table', attrs={'class', 'findList'})
+    if not find_list:
+        logging.error('Search page for {0} invalid'.format(
+            movie.encode('utf-8')))
+        with open('{0}.html'.format(b64encode(movie.encode('utf-8'))), 'w') as f:
+            f.write(soup.prettify().encode('utf-8')),
+        return None
     top = find_list.find('td', attrs={'class', 'result_text'})
 
     top_a = top.find('a')
@@ -90,7 +116,7 @@ def get_title_page(movie_id):
     url = "http://www.imdb.com/title/{0}".format(movie_id)
     logging.info('Loading title page: %s' % url)
     request = urllib2.Request(url)
-    response = url_opener.open(request)
+    response = open_url(request)
     return response
 
 def get_rating_params(movie_id, new_rating):
@@ -118,7 +144,7 @@ def rate(movie_id, rating):
     data = urllib.urlencode(rating_params)
     request = urllib2.Request(url, data)
     logging.info('Posting ratings to %s' % url)
-    response = url_opener.open(request)
+    response = open_url(request)
     response_data = response.read()
     return response_data
 
