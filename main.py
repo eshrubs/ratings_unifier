@@ -6,8 +6,13 @@ import progressbar
 
 from rt_scraper import config, rt_scraper
 
+def scrape_rt(csv_output, rt_user_id):
+    with open(csv_output, 'w') as f:
+        rt_scraper.scrape(rt_user_id, outfile=f)
+
+
 def main():
-    parser = argparse.ArgumentParser(description='Scrape ratings')
+    parser = argparse.ArgumentParser(description='Work with ratings')
 
     parser.add_argument('-c', '--csv-output',
                         help='Filename for csv output')
@@ -22,8 +27,7 @@ def main():
     args = parser.parse_args()
 
     if (args.site == 'rt'):
-        with open(args.csv_output, 'w') as f:
-            rt_scraper.scrape(args.rt_user_id, outfile=f)
+        scrape_rt(args.csv_output, args.rt_user_id)
     else:
         raise Exception("Didn't scrape")
 

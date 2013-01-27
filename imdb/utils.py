@@ -4,6 +4,7 @@ import sys
 import os
 import json
 import re
+import logging
 
 import urllib
 import urllib2
@@ -33,7 +34,7 @@ def login(login, password):
         response = url_opener.open(request)
         return response
     except urllib2.HTTPError, ex:
-        sys.stderr.write('Request failed: %d, %s', ex.code, response_data)
+        logging.error('Request failed: %d, %s', ex.code, response_data)
         raise
 
 
@@ -44,9 +45,10 @@ def search(query):
         })
     url = 'http://www.imdb.com/find?{0}'.format(encoded_query)
 
-    sys.stderr.write('%s\n' % url)
     request = urllib2.Request(url)
+    logging.info('Searching: %s' % url)
     response = url_opener.open(request)
+    response_data = response.read()
     return response_data
 
 
@@ -63,20 +65,30 @@ def try_get_search_page(movie, year=None):
     top_title, top_year = re.match(r'(.+) \((\d+)\)', td_string).groups()
     top_year = int(top_year)
 
-    sys.stderr.write('%s, %d\n' % (top_title, top_year))
-
     if not top_title.lower() == movie.lower():
-        sys.stderr.write('%s does not match %s exactly\n' % (top_title, movie))
+        logging.warning('%s does not match %s exactly' % (top_title, movie))
+        return None
     elif year and not year == top_year:
-        sys.strerr.write('Years for movie %s does not match (%d, %d)\n' %
+        logging.warning('Years for movie %s does not match (%d, %d)' %
                 (top_title, year, top_year))
+        return None
 
     return top_a['href']
 
 
+def get_title_id(movie, year):
+    link = try_get_search_page(movie, year)
+    if link:
+        title_id = re.match(r'/title/(.+)/', link).group(1)
+        if not title_id:
+            logging.error('Link was not in a good format: {0}'.format(link))
+            return None
+        return title_id
+    return None
+
 def get_title_page(movie_id):
     url = "http://www.imdb.com/title/{0}".format(movie_id)
-    sys.stderr.write('Loading title page: %s\n' % url)
+    logging.info('Loading title page: %s' % url)
     request = urllib2.Request(url)
     response = url_opener.open(request)
     return response
@@ -105,7 +117,7 @@ def rate(movie_id, rating):
     rating_params = get_rating_params(movie_id, rating)
     data = urllib.urlencode(rating_params)
     request = urllib2.Request(url, data)
-    sys.stderr.write('Posting ratings to %s\n' % url)
+    logging.info('Posting ratings to %s' % url)
     response = url_opener.open(request)
     response_data = response.read()
     return response_data
