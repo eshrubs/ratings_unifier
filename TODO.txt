@@ -1,0 +1,3 @@
+- If 503, the login again
+- Handle interactive mode (multiple search results)
+- Remove punctuation, brackets, and compare in ascii and utf-8
