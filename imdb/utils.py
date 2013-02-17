@@ -6,6 +6,7 @@ import json
 import re
 import logging
 import time
+import itertools
 from base64 import b64encode
 
 import urllib
@@ -71,6 +72,59 @@ def search(query):
     response_data = response.read()
     return response_data
 
+def unstrict_year_match(top_year, movie_year):
+    if abs(movie_year - top_year) <= 1:
+        logging.info('Year is only 1 different. Assume ok.')
+        return True
+    return False
+
+def unstrict_title_match(top_title, movie_title):
+    # Remove periods, commas and 3d
+    remove_crap_re = (r'\.|,|(?:3[dD])')
+    top_title = re.sub(remove_crap_re, '', top_title.lower())
+    movie_title = re.sub(remove_crap_re, '', movie_title.lower())
+    logging.info('Clean top = %s' % top_title)
+    logging.info('Clean movie = %s' % movie_title)
+
+    bracketed_titles_re = (r'\(([^\)]+)\)')
+    top_brackets = re.findall(bracketed_titles_re, top_title)
+    logging.info('TopGroups = %s' % top_brackets)
+    movie_brackets = re.findall(bracketed_titles_re, movie_title)
+    logging.info('MovieGroups = %s' % movie_brackets)
+
+    unbracked_titles_re = r'\A([^\(]+)(?:\W\(|\Z)'
+    top_non_brackets = re.findall(unbracked_titles_re, top_title)
+    logging.info('TopGroups = %s' % top_non_brackets)
+    movie_non_brackets = re.findall(unbracked_titles_re, movie_title)
+    logging.info('MovieGroups = %s' % movie_non_brackets)
+
+    for t, m in itertools.product(
+            itertools.chain(top_brackets, top_non_brackets),
+            itertools.chain(movie_brackets, movie_non_brackets)):
+        if t == m:
+            logging.info('Sub-titles %s = %s', t, m)
+            return True
+    return False
+
+def match(top_title, top_year, movie_title, movie_year, strict=False):
+    if not movie_year:
+        return False
+    if not top_title.lower() == movie_title.lower():
+        logging.warning('%s does not match %s exactly' %
+                        (top_title, movie_title))
+        if strict:
+            return False
+        elif not unstrict_title_match(top_title, movie_title):
+            return False
+    if movie_year and not movie_year == top_year:
+        logging.warning('Years for movie %s does not match (%d, %d)' %
+                        (top_title, movie_year, top_year))
+        if strict:
+            return False
+        elif not unstrict_year_match(top_year, movie_year):
+            return False
+
+    return True
 
 def try_get_search_page(movie, year=None):
     html = search("%s %s" % (movie, year))
@@ -91,12 +145,7 @@ def try_get_search_page(movie, year=None):
     top_title, top_year = re.match(r'(.+) \((\d+)\)', td_string).groups()
     top_year = int(top_year)
 
-    if not top_title.lower() == movie.lower():
-        logging.warning('%s does not match %s exactly' % (top_title, movie))
-        return None
-    elif year and not year == top_year:
-        logging.warning('Years for movie %s does not match (%d, %d)' %
-                (top_title, year, top_year))
+    if not match(top_title, top_year, movie, year, False):
         return None
 
     return top_a['href']
